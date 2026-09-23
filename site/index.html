@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>EXIT LIQUIDITY · Arc</title>
+<meta name="description" content="Every Uniswap V4 pool on Circle's Arc chain, indexed from raw RPC. How many are actually markets.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#000; --panel:#08090a; --panel2:#0d0f11; --line:#171a1d; --rule:#22262a;
+    --ink:#d7dbdd; --dim:#70777c; --faint:#454c51;
+    --green:#4ade80; --cyan:#38bdf8; --mag:#e879f9; --orange:#fb923c;
+    --lime:#bef264; --red:#f87171; --violet:#a78bfa;
+    --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--mono);font-size:13px}
+  body{padding:0 0 60px;-webkit-font-smoothing:antialiased}
+  a{color:var(--cyan);text-decoration:none}
+  a:hover{text-decoration:underline}
+
+  /* ---- header ---- */
+  header{
+    position:sticky;top:0;z-index:20;background:var(--bg);
+    border-bottom:1px solid var(--rule);
+    padding:12px 16px;padding-top:calc(12px + env(safe-area-inset-top,0px));
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  }
+  .brand{white-space:nowrap}
+  nav button{padding:6px 9px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:600;letter-spacing:.06em}
+  .mark{width:18px;height:18px;border:1px solid var(--green);display:grid;place-items:center;color:var(--green);font-size:12px;line-height:1}
+  .chain{border:1px solid var(--green);color:var(--green);padding:3px 9px;font-size:11px;letter-spacing:.09em}
+  nav{display:flex;gap:4px;flex-wrap:wrap;margin-left:6px}
+  nav button{
+    background:none;border:1px solid transparent;color:var(--dim);font-family:var(--mono);
+    font-size:12px;letter-spacing:.06em;padding:6px 11px;cursor:pointer;
+  }
+  nav button:hover{color:var(--ink)}
+  nav button[aria-selected="true"]{color:var(--ink);border-color:var(--rule);background:var(--panel2)}
+  .live{margin-left:auto;display:flex;align-items:center;gap:14px;white-space:nowrap;font-size:11px;color:var(--dim);letter-spacing:.06em}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;margin-right:6px;
+       animation:pulse 2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+  .live b{color:var(--ink);font-weight:500;font-variant-numeric:tabular-nums}
+
+  main{padding:18px;max-width:1500px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+
+  /* ---- panels ---- */
+  .panel{position:relative;background:var(--panel);border:1px solid var(--line);padding:16px 18px 18px}
+  .panel::before,.panel::after{content:"";position:absolute;width:9px;height:9px;border:1px solid var(--faint)}
+  .panel::before{top:-1px;left:-1px;border-right:0;border-bottom:0}
+  .panel::after{bottom:-1px;right:-1px;border-left:0;border-top:0}
+  .ptitle{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+  .ptitle h2{margin:0;font-size:13px;font-weight:600;letter-spacing:.1em;color:var(--ink)}
+  .ptitle .desc{font-size:11.5px;color:var(--dim)}
+  .ptitle .note{margin-left:auto;font-size:11px;color:var(--faint)}
+
+  /* ---- stat row ---- */
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line)}
+  .stat{background:var(--panel);padding:14px 15px}
+  .stat .v{font-size:23px;font-weight:600;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+  .stat .k{font-size:10.5px;color:var(--dim);letter-spacing:.08em;margin-top:5px}
+  .stat.hi .v{color:var(--red)}
+
+  /* ---- funnel ---- */
+  .funnel{display:flex;flex-direction:column;gap:9px}
+  .frow{display:grid;grid-template-columns:200px 1fr 120px;gap:14px;align-items:center}
+  .flab{font-size:11.5px;color:var(--dim);text-align:right}
+  .ftrack{height:22px;background:var(--panel2);position:relative;overflow:hidden}
+  .fbar{height:100%;background:linear-gradient(90deg,var(--cyan),var(--violet));min-width:2px;
+        transition:width .5s cubic-bezier(.2,.7,.3,1)}
+  .frow:last-child .fbar{background:linear-gradient(90deg,var(--orange),var(--red))}
+  .fval{font-size:12px;font-variant-numeric:tabular-nums;color:var(--ink)}
+  .fpct{font-size:10.5px;color:var(--faint);margin-left:7px}
+
+  /* ---- table ---- */
+  .tablewrap{overflow-x:auto;border:1px solid var(--line)}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th{
+    position:sticky;top:0;background:var(--panel2);color:var(--dim);text-align:left;font-weight:500;
+    font-size:10.5px;letter-spacing:.08em;padding:9px 12px;border-bottom:1px solid var(--rule);
+    white-space:nowrap;cursor:pointer;user-select:none;
+  }
+  th:hover{color:var(--ink)}
+  th[data-dir]{color:var(--ink)}
+  th .ar{color:var(--green);margin-left:4px}
+  td{padding:8px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+  tbody tr:hover{background:var(--panel2)}
+  .num{text-align:right;font-variant-numeric:tabular-nums}
+  .sym{color:var(--ink);font-weight:500}
+  .muted{color:var(--dim)}
+  .tag{font-size:9.5px;letter-spacing:.06em;padding:1px 6px;border:1px solid;margin-left:5px}
+  .tag.fee{color:var(--red);border-color:var(--red)}
+  .tag.imp{color:var(--orange);border-color:var(--orange)}
+  .tag.solo{color:var(--faint);border-color:var(--faint)}
+  .tag.dyn{color:var(--violet);border-color:var(--violet)}
+
+  .lede{color:var(--dim);font-size:12.5px;line-height:1.75;max-width:78ch;margin:0}
+  .lede b{color:var(--ink);font-weight:600}
+  .lede+.lede{margin-top:10px}
+  .kicker{color:var(--green);font-size:11px;letter-spacing:.1em;margin:0 0 8px}
+
+  footer{max-width:1500px;margin:28px auto 0;padding:18px;border-top:1px solid var(--line);
+         color:var(--faint);font-size:10.5px;line-height:1.9}
+  [hidden]{display:none!important}
+  @media(max-width:720px){
+    .frow{grid-template-columns:120px 1fr;gap:9px}
+    .frow .fval{grid-column:2;text-align:right}
+    .live{width:100%;margin-left:0}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand"><span class="mark">+</span> EXIT&nbsp;LIQUIDITY</div>
+  <span class="chain">ARC MAINNET</span>
+  <nav id="tabs">
+    <button data-tab="census" aria-selected="true">[1] CENSUS</button>
+    <button data-tab="tokens" aria-selected="false">[2] TOKENS</button>
+    <button data-tab="flags" aria-selected="false">[3] FLAGS</button>
+    <button data-tab="method" aria-selected="false">[4] METHOD</button>
+  </nav>
+  <div class="live">
+    <span><span class="dot"></span>live</span>
+    <span>BLOCK <b id="blk">—</b></span>
+    <span>UTC <b id="clk">—</b></span>
+  </div>
+</header>
+
+<main>
+
+  <!-- ============ CENSUS ============ -->
+  <section id="census">
+    <div class="panel">
+      <p class="kicker">THE QUESTION</p>
+      <p class="lede">Circle launched Arc on 16 September 2026. Twenty-seven launchpads opened almost immediately and began minting tokens — Argus alone minted <b>83,751 in the first 24 hours</b>. The open question is whether any of that became a market.</p>
+      <p class="lede">This counts every Uniswap V4 pool ever created on Arc, straight from the chain, and then applies progressively weaker definitions of the word "market" to see how many survive each one.</p>
+    </div>
+
+    <div class="stats" id="statrow"></div>
+
+    <div class="panel">
+      <div class="ptitle">
+        <h2>MARKET_FUNNEL</h2>
+        <span class="desc">pools on Arc · each step a weaker definition of a market</span>
+        <span class="note">linear · % of pools created</span>
+      </div>
+      <div class="funnel" id="funnel"></div>
+      <p class="lede" style="margin-top:18px" id="funnelNote"></p>
+    </div>
+  </section>
+
+  <!-- ============ TOKENS ============ -->
+  <section id="tokens" hidden>
+    <div class="panel">
+      <div class="ptitle">
+        <h2>TOKENS</h2>
+        <span class="desc">every pool with a USDC leg that ever traded</span>
+        <span class="note">click a column to sort</span>
+      </div>
+      <div class="tablewrap">
+        <table id="tokTable">
+          <thead><tr>
+            <th data-k="sym">TOKEN</th>
+            <th data-k="v" class="num">USDC VOLUME</th>
+            <th data-k="sw" class="num">SWAPS</th>
+            <th data-k="w" class="num">WALLETS</th>
+            <th data-k="fee" class="num">FEE</th>
+            <th data-k="lb" class="num">LAST BLOCK</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FLAGS ============ -->
+  <section id="flags" hidden>
+    <div class="panel">
+      <div class="ptitle">
+        <h2>FLAGS</h2>
+        <span class="desc">pools whose own parameters make them unsafe to touch</span>
+      </div>
+      <p class="lede" id="flagLede"></p>
+      <div class="tablewrap" style="margin-top:16px">
+        <table id="flagTable">
+          <thead><tr>
+            <th>TOKEN</th><th class="num">FEE</th><th class="num">USDC VOLUME</th>
+            <th class="num">SWAPS</th><th class="num">WALLETS</th><th>ADDRESS</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ METHOD ============ -->
+  <section id="method" hidden>
+    <div class="panel">
+      <div class="ptitle"><h2>METHOD</h2><span class="desc">how every number here was produced</span></div>
+      <p class="lede">Arc routes every Uniswap V4 swap through a single PoolManager at <b>0x8366a39c…e40951</b>, with the pool id as an indexed topic. That makes the chain's entire DEX history one filtered log query. Pools are counted from <b>Initialize</b> events on the same contract, over the same block window, so "created" and "traded" are measured on identical ground.</p>
+      <p class="lede">No API wrapper, no paid RPC, no indexing service. The block number in the header is this page calling <b>rpc.mainnet.arc.io</b> directly from your browser — open devtools and watch it.</p>
+      <p class="lede"><b>Stated limits.</b> The scan covers blocks 21,065,860 to 22,357,859; pools created before Arc's public launch are excluded. Thirteen of 1,292 chunks failed on rate limits, so roughly 1% of the window is unscanned and the created count is a floor. Swap-derived counts come from a 4.6M-swap index and are also floors. Volume is the USDC leg of each swap, summed absolutely, so it counts both sides of a round trip.</p>
+      <p class="lede"><b>What is deliberately not claimed.</b> A pool with few traders is not necessarily a scam, and a high fee is not necessarily a trap — but both are facts about the pool that nobody surfaces before you trade. Fee figures are the pool's own setting; where a V4 hook sets the fee per swap the pool is marked <span class="tag dyn">DYN</span> rather than given a number.</p>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  Indexed from Arc mainnet (chain 5042) via rpc.mainnet.arc.io · Uniswap V4 PoolManager 0x8366a39cc670b4001a1121b8f6a443a643e40951<br>
+  Source and full methodology: <a href="https://github.com/Clintobi/arc-exit-liquidity">github.com/Clintobi/arc-exit-liquidity</a>
+</footer>
+
+<script>
+const RPC = "https://rpc.mainnet.arc.io";
+const fmt = n => n.toLocaleString("en-US");
+const usd = n => n >= 1e6 ? "$"+(n/1e6).toFixed(2)+"M"
+               : n >= 1e3 ? "$"+(n/1e3).toFixed(1)+"k" : "$"+n.toFixed(0);
+
+/* ---- live chain head, straight from the browser ---- */
+async function tick(){
+  document.getElementById("clk").textContent =
+    new Date().toISOString().slice(11,19);
+  try{
+    const r = await fetch(RPC,{method:"POST",headers:{"content-type":"application/json"},
+      body:JSON.stringify({jsonrpc:"2.0",id:1,method:"eth_blockNumber",params:[]})});
+    const j = await r.json();
+    if(j.result) document.getElementById("blk").textContent = fmt(parseInt(j.result,16));
+  }catch(e){ /* a dropped poll should never blank a good number */ }
+}
+tick(); setInterval(tick, 2000);
+
+/* ---- tabs ---- */
+const tabs = document.getElementById("tabs");
+tabs.addEventListener("click", e => {
+  const b = e.target.closest("button"); if(!b) return;
+  [...tabs.children].forEach(x => x.setAttribute("aria-selected", x===b));
+  ["census","tokens","flags","method"].forEach(id =>
+    document.getElementById(id).hidden = (id !== b.dataset.tab));
+});
+addEventListener("keydown", e => {
+  const i = ["1","2","3","4"].indexOf(e.key);
+  if(i >= 0 && !/input|textarea/i.test(document.activeElement.tagName)) tabs.children[i].click();
+});
+
+/* ---- data ---- */
+let DATA = null;
+
+function feeCell(r){
+  if(r.dyn) return '<span class="tag dyn">DYN</span>';
+  if(r.fee == null) return '<span class="muted">—</span>';
+  const pct = r.fee/1e4;
+  return (pct >= 50 ? '<span style="color:var(--red)">' : '<span>') +
+         pct.toFixed(pct < 1 ? 3 : 2) + "%</span>";
+}
+function tagsFor(r){
+  let s = "";
+  if(r.hf)   s += '<span class="tag fee">HIGH FEE</span>';
+  if(r.imp)  s += '<span class="tag imp">FAKE USDC</span>';
+  if(r.solo) s += '<span class="tag solo">1 WALLET</span>';
+  return s;
+}
+
+function renderCensus(){
+  const f = DATA.funnel, created = f[0].n, alive = f[f.length-1].n;
+  document.getElementById("statrow").innerHTML = [
+    ["POOLS CREATED", fmt(created), ""],
+    ["EVER TRADED", fmt(f[1].n), ""],
+    ["2+ WALLETS", fmt(f[3].n), ""],
+    ["100+ WALLETS", fmt(alive), "hi"],
+    ["SWAPS INDEXED", fmt(DATA.swaps_total), ""],
+  ].map(([k,v,c]) => `<div class="stat ${c}"><div class="v">${v}</div><div class="k">${k}</div></div>`).join("");
+
+  // Linear on purpose. A log axis would flatter the collapse into a taper;
+  // the last two bars being hairlines is the finding, not a rendering flaw.
+  document.getElementById("funnel").innerHTML = f.map(s => {
+    const pct = s.n / created * 100;
+    return `<div class="frow">
+      <div class="flab">${s.label}</div>
+      <div class="ftrack"><div class="fbar" style="width:${Math.max(pct,0.12).toFixed(3)}%"></div></div>
+      <div class="fval">${fmt(s.n)}<span class="fpct">${pct.toFixed(pct<0.1?3:1)}%</span></div>
+    </div>`;
+  }).join("");
+
+  document.getElementById("funnelNote").innerHTML =
+    `Of <b>${fmt(created)}</b> pools created on Arc, <b>${fmt(alive)}</b> ever saw 100 distinct wallets trade them — `+
+    `<b>${(alive/created*100).toFixed(3)}%</b>. The launchpads worked exactly as designed. What they produced was pools, not markets.`;
+}
+
+let sortK = "v", sortDir = -1;
+function renderTokens(){
+  const rows = [...DATA.tokens].sort((a,b) =>
+    (typeof a[sortK] === "string")
+      ? sortDir * String(a[sortK]).localeCompare(String(b[sortK]))
+      : sortDir * ((a[sortK] ?? -1) - (b[sortK] ?? -1)));
+  document.querySelector("#tokTable tbody").innerHTML = rows.slice(0,600).map(r => `
+    <tr>
+      <td><span class="sym">${r.sym}</span>${tagsFor(r)}</td>
+      <td class="num">${usd(r.v)}</td>
+      <td class="num">${fmt(r.sw)}</td>
+      <td class="num">${fmt(r.w)}</td>
+      <td class="num">${feeCell(r)}</td>
+      <td class="num muted">${fmt(r.lb)}</td>
+    </tr>`).join("");
+  document.querySelectorAll("#tokTable th").forEach(th => {
+    th.removeAttribute("data-dir");
+    th.querySelector(".ar")?.remove();
+    if(th.dataset.k === sortK){
+      th.setAttribute("data-dir", sortDir);
+      th.insertAdjacentHTML("beforeend", `<span class="ar">${sortDir<0?"▼":"▲"}</span>`);
+    }
+  });
+}
+document.querySelector("#tokTable thead").addEventListener("click", e => {
+  const th = e.target.closest("th"); if(!th?.dataset.k) return;
+  if(sortK === th.dataset.k) sortDir *= -1; else { sortK = th.dataset.k; sortDir = -1; }
+  renderTokens();
+});
+
+function renderFlags(){
+  const fl = DATA.flags;
+  document.getElementById("flagLede").innerHTML =
+    `<b>${fmt(fl.high_fee)}</b> pools charge a fixed swap fee of 50% or more — every one of them realised that fee on real swaps, `+
+    `with no hook overriding it. <b>${fmt(fl.impostor)}</b> pools trade a token whose symbol reads USDC but whose contract is not USDC, `+
+    `on a chain where USDC is the gas token. <b>${fmt(fl.solo)}</b> have been touched by exactly one wallet.`;
+  document.querySelector("#flagTable tbody").innerHTML = DATA.flagged.map(r => `
+    <tr>
+      <td><span class="sym">${r.sym}</span>${tagsFor(r)}</td>
+      <td class="num">${feeCell(r)}</td>
+      <td class="num">${usd(r.v)}</td>
+      <td class="num">${fmt(r.sw)}</td>
+      <td class="num">${fmt(r.w)}</td>
+      <td class="muted">${r.addr ? r.addr.slice(0,10)+"…"+r.addr.slice(-6) : "—"}</td>
+    </tr>`).join("");
+}
+
+fetch("data/arc.json").then(r => r.json()).then(d => {
+  DATA = d; renderCensus(); renderTokens(); renderFlags();
+}).catch(e => {
+  document.getElementById("funnelNote").textContent = "could not load data/arc.json";
+});
+</script>
+</body>
+</html>
