@@ -1,0 +1,62 @@
+name: index arc
+
+# Runs on GitHub's machines, not a laptop. The raw swap log is cached between
+# runs (too large to commit); only the small derived JSON is committed, which
+# is what the dashboard loads.
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+    inputs:
+      from_block:
+        description: "Block to index from (default: Arc public mainnet launch)"
+        required: false
+        default: "21065860"
+
+concurrency:
+  group: arc-index
+  cancel-in-progress: false
+
+jobs:
+  index:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # The swap log grows into the hundreds of MB, so it lives in the cache
+      # rather than in git. A restore-key means a partial index still resumes.
+      - name: restore swap log
+        uses: actions/cache/restore@v4
+        with:
+          path: data
+          key: arc-swaps-${{ github.run_id }}
+          restore-keys: arc-swaps-
+
+      - name: index new blocks
+        run: |
+          mkdir -p data && touch data/swaps.csv
+          python3 arc_index.py --workers 12 \
+            --from-block "${{ github.event.inputs.from_block || '21065860' }}"
+
+      - name: aggregate
+        run: python3 aggregate.py
+
+      - name: save swap log
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: data
+          key: arc-swaps-${{ github.run_id }}
+
+      - name: commit derived data
+        run: |
+          git config user.name "arc-indexer"
+          git config user.email "actions@users.noreply.github.com"
+          git add site/data
+          git diff --staged --quiet || git commit -m "data: refresh $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push
