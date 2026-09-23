@@ -46,6 +46,12 @@ jobs:
       - name: aggregate
         run: python3 aggregate.py
 
+      # Names the scored pools in pools.json. Seeds from the committed
+      # site/data/tokens.json when the cache is cold.
+      - name: map pool ids to tokens
+        continue-on-error: true      # a flaky RPC must not block the markout refresh
+        run: python3 arc_tokens.py --workers 4
+
       - name: save swap log
         uses: actions/cache/save@v4
         if: always()

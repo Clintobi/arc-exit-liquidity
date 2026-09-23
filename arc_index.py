@@ -49,11 +49,22 @@ def signed(x, bits=256):
     return x - (1 << bits) if x >= (1 << (bits - 1)) else x
 
 
-def fetch(start):
-    logs = rpc("eth_getLogs", [{"fromBlock": hex(start), "toBlock": hex(start + CHUNK - 1),
+def get_swaps(a, b):
+    return rpc("eth_getLogs", [{"fromBlock": hex(a), "toBlock": hex(b),
                                 "address": POOL_MANAGER, "topics": [SWAP]}])
+
+
+def fetch(start):
+    logs = get_swaps(start, start + CHUNK - 1)
     if logs is None:
-        return start, None
+        # The primary refuses any query over 20,000 results, and the busiest
+        # launch-week chunks exceed that; drpc refuses 1,000-block ranges on
+        # its free plan. Both serve 100-block ranges. The chunk is still only
+        # recorded done if every sub-range came back.
+        parts = [get_swaps(s, s + 99) for s in range(start, start + CHUNK, 100)]
+        if any(p is None for p in parts):
+            return start, None
+        logs = [l for p in parts for l in p]
     rows = []
     for l in logs:
         raw = l["data"][2:]
