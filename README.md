@@ -59,7 +59,11 @@ Recorded because the corrections matter more than the result.
 
 **The indexer could never finish.** The RPC rejects any `eth_getLogs` returning more than 20,000 logs; 55 chunks in launch week exceed that, the error was swallowed, and every rerun skipped them. Fixed with a 100-block sub-range fallback.
 
-**An early markout finding does not reproduce.** A partial 20,000-block sample appeared to show buyers systematically picked off. On the full index those numbers do not exist. The claim was removed rather than rounded into something defensible. Markouts are not currently reported here; the direction needs re-deriving against the corrected sign convention first.
+**An early markout finding does not reproduce, and the metric itself does not work here.** A partial 20,000-block sample appeared to show buyers systematically picked off. On the full index those numbers do not exist. Re-derived against the corrected sign convention the result reversed — buys preceded *better* moves than sells, median gap −51bp across 2,289 pools, with buyers worse in only 44% of them.
+
+That reversal is also not reportable, and the reason is the useful part. A markout is only evidence of adverse selection if order flow is roughly independent. On Arc it is nowhere close: across 3.7M consecutive swap pairs, a buy is followed by another buy **84.0%** of the time against **39.4%** after a sell — a 44.5 percentage-point clustering lift. In an AMM that mechanically lifts the price after any buy, whether or not the buyer knew anything.
+
+So the price rise after buys is the next buys arriving, not information. Markouts cannot separate momentum from adverse selection on this flow, in either direction, and no amount of horizon tuning fixes it. `markouts.py` and `flow_clustering.py` reproduce both halves. Nothing is reported from them.
 
 **Fee `8388608` is not a 838% fee**, it is V4's dynamic-fee sentinel meaning a hook sets the rate per swap. Those pools are marked `DYN` rather than given a number.
 
