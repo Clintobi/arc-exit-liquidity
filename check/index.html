@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Check This Token</title>
-<meta name="description" content="Paste a token address from Arc. Find out what's on record about it before you trade.">
+<title>Arc Token Check</title>
+<meta name="description" content="Token records from Arc mainnet, read from an on-chain registry.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -80,29 +80,29 @@
 <div class="wrap">
 
   <header>
-    <span class="badge"><span class="dot"></span> ARC MAINNET · <span id="cnt">…</span> TOKENS ON RECORD</span>
-    <h1>Check this token</h1>
-    <p class="sub">Paste a token address from Arc. You'll find out what's on record about it — read live from a contract on Arc, not from us.</p>
+    <span class="badge"><span class="dot"></span> ARC MAINNET · <span id="cnt">...</span> RECORDS</span>
+    <h1>Token check</h1>
+    <p class="sub">Enter a token address from Arc. Records are read from an on-chain registry.</p>
   </header>
 
   <form id="f">
-    <input id="a" spellcheck="false" autocomplete="off" placeholder="0x…" aria-label="token address">
+    <input id="a" spellcheck="false" autocomplete="off" placeholder="0x" aria-label="token address">
     <button id="go" type="submit">Check</button>
   </form>
 
   <div class="out" id="out"></div>
 
   <div class="examples">
-    <b>Try one of these</b>
-    <button class="ex" data-a="0x8e98a62a995a50eca9979bfa016f91bf36a8f9d9">0x8e98a62a…a8f9d9 — trades as "USDC", isn't USDC</button>
-    <button class="ex" data-a="0x3600000000000000000000000000000000000000">0x36000000…000000 — the real USDC on Arc</button>
+    <b>Examples</b>
+    <button class="ex" data-a="0x8e98a62a995a50eca9979bfa016f91bf36a8f9d9">0x8e98a62a995a50eca9979bfa016f91bf36a8f9d9</button>
+    <button class="ex" data-a="0x3600000000000000000000000000000000000000">0x3600000000000000000000000000000000000000</button>
   </div>
 
   <footer>
-    Records live at <a href="https://explorer.arc.io/address/0x27B0AA7E1824d4561c02363bf1c3Ac47e4548221" target="_blank" rel="noopener">0x27B0AA7E…4548221</a> on Arc mainnet.<br>
-    Built from a full index of every Uniswap V4 swap on Arc ·
-    <a href="https://github.com/Clintobi/arc-exit-liquidity" target="_blank" rel="noopener">source</a> ·
-    <a href="https://arc-exit-liquidity.vercel.app" target="_blank" rel="noopener">chain-level data</a>
+    Registry <a href="https://explorer.arc.io/address/0x27B0AA7E1824d4561c02363bf1c3Ac47e4548221" target="_blank" rel="noopener">0x27B0AA7E1824d4561c02363bf1c3Ac47e4548221</a>, Arc mainnet.<br>
+    Derived from a full index of Uniswap V4 swaps on Arc.
+    <a href="https://github.com/Clintobi/arc-exit-liquidity" target="_blank" rel="noopener">Source</a>.
+    <a href="https://arc-exit-liquidity.vercel.app" target="_blank" rel="noopener">Chain data</a>.
   </footer>
 </div>
 
@@ -126,11 +126,11 @@ async function call(data){
 
 // Worded as facts about the token, because that is what the registry holds.
 const FINDINGS = [
-  [1,  "It trades under the symbol “USDC”, but its contract is not USDC. On Arc, USDC is the gas token."],
-  [2,  "The pool where most of its trading happens charges a fee of 50% or more. Selling out costs most of what you put in."],
-  [4,  "Only one wallet has ever traded it. There is nobody else on the other side."],
-  [8,  "A pool exists for it, but no trade has ever settled there."],
-  [16, "Its fee is set per swap by a hook contract, so no fixed rate can be quoted in advance."],
+  [1,  "Trades under the symbol USDC. Its contract is not USDC. USDC is the gas token on Arc."],
+  [2,  "The pool carrying most of its volume charges a fee of 50 percent or more."],
+  [4,  "One wallet accounts for every trade on record."],
+  [8,  "A pool exists. No trade has settled in it."],
+  [16, "Fee is set per swap by a hook contract. No fixed rate applies."],
 ];
 
 const out = document.getElementById("out");
@@ -142,39 +142,39 @@ function render(html, kind){
 
 async function check(addr){
   if(!/^0x[a-fA-F0-9]{40}$/.test(addr)){
-    render(`<div class="headline">That isn't an address</div>
-      <div class="note">A token address is 42 characters and starts with 0x.</div>`, "err");
+    render(`<div class="headline">Not an address</div>
+      <div class="note">Expected 42 characters beginning 0x.</div>`, "err");
     return;
   }
-  render(`<div class="headline">Reading Arc…</div>`, "");
+  render(`<div class="headline">Reading</div>`, "");
   try{
     const w = words(await call(SEL_RECORD + pad(addr)));
     const [flags, pools, traders, maxFee, blockSeen] = w.slice(0,5).map(num);
 
     if(!flags){
-      render(`<div class="headline">Nothing on record</div>
-        <div class="note">None of the checks in this registry fired for this token.
-        That is not the same as safe — it means no symbol collision with USDC, no
-        50%+ fee, and no single-wallet pool was found. Everything else is still on you.</div>
+      render(`<div class="headline">No records</div>
+        <div class="note">No check in this registry returned a result for this token.
+        That is not a safety assessment. It means no USDC symbol collision, no fee at or
+        above 50 percent, and no single wallet pool was found. Nothing else was tested.</div>
         <div class="addr">${addr}</div>`, "clean");
       return;
     }
     const hits = FINDINGS.filter(([b]) => flags & b).map(([,t]) => t);
     render(`
-      <div class="headline">${hits.length} finding${hits.length>1?"s":""}</div>
+      <div class="headline">${hits.length} record${hits.length>1?"s":""}</div>
       <ul>${hits.map(h => `<li>${h}</li>`).join("")}</ul>
       <div class="facts">
         <div class="fact"><div class="v">${pools.toLocaleString()}</div><div class="k">POOLS</div></div>
-        <div class="fact"><div class="v">${traders.toLocaleString()}</div><div class="k">WALLETS EVER</div></div>
-        <div class="fact"><div class="v">${(maxFee/1e4).toFixed(2)}%</div><div class="k">HIGHEST FEE</div></div>
-        <div class="fact"><div class="v">${blockSeen.toLocaleString()}</div><div class="k">AS OF BLOCK</div></div>
+        <div class="fact"><div class="v">${traders.toLocaleString()}</div><div class="k">WALLETS</div></div>
+        <div class="fact"><div class="v">${(maxFee/1e4).toFixed(2)}%</div><div class="k">MAX FEE</div></div>
+        <div class="fact"><div class="v">${blockSeen.toLocaleString()}</div><div class="k">BLOCK</div></div>
       </div>
-      <div class="note">These are statements of fact about the token and its pools, read from
-      the registry on Arc. They are not an accusation, and the numbers are there so you can
-      check them yourself.</div>
+      <div class="note">Observations about the token and its pools, read from the registry on
+      Arc. Not an assessment of intent. The figures are included so they can be verified
+      independently.</div>
       <div class="addr">${addr}</div>`, "bad");
   }catch(e){
-    render(`<div class="headline">Couldn't reach Arc</div>
+    render(`<div class="headline">Arc unreachable</div>
       <div class="note">${String(e.message || e).slice(0,140)}</div>`, "err");
   }
 }
@@ -190,7 +190,7 @@ document.querySelectorAll(".ex").forEach(b => b.addEventListener("click", () => 
 
 call(SEL_COUNT)
   .then(r => document.getElementById("cnt").textContent = Number(BigInt(r)).toLocaleString())
-  .catch(() => document.getElementById("cnt").textContent = "—");
+  .catch(() => document.getElementById("cnt").textContent = "n/a");
 </script>
 </body>
 </html>
