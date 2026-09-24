@@ -1,47 +1,68 @@
-# Exit Liquidity — Arc
+# Arc is two chains
 
-Every Uniswap V4 swap on Circle's Arc chain since public mainnet launch, indexed from raw RPC, to answer one question per token: **what happened to the people who bought it?**
+**Live: [arc-exit-liquidity.vercel.app](https://arc-exit-liquidity.vercel.app)**
 
-Arc routes all V4 swaps through a single PoolManager (`0x8366a39cc670b4001a1121b8f6a443a643e40951`) with the pool id as an indexed topic, so the chain's entire DEX history is one filtered log query. No API wrapper, no paid RPC, no indexer service.
+Circle launched Arc on 16 September 2026 and the coverage was unanimous. Coindesk: *"traders immediately turned it into a memecoin casino."* Forbes: *"Circle built Arc for BlackRock, memecoins are moving in first."* Fortune, KuCoin and the rest ran the same story — the institutional chain had been taken over on day one.
 
-## The metric
+The arithmetic does not support it.
 
-**Markout** — after a fill, where is the price 1, 5 and 30 minutes later. It measures whether you got picked off.
+| | |
+|---|---|
+| USDC in circulation, week one (Circle) | 624,000,000 |
+| USDC transferred, week one (Circle) | $6,800,000,000 |
+| Of that, through DEX pools (this repo) | **~$176M — under 3%** |
+| Uniswap V4 pools created (this repo) | **200,163** |
+| Pools that ever traded | 48,495 |
+| Pools with 100+ distinct wallets | **34** |
 
-Buyers alone prove nothing. A token in freefall makes every buyer look bad, and that's a downtrend, not adverse selection. So sellers are the control: if both sides lose equally the token is simply falling; only a *gap* between the two sides means someone is systematically on the right side of the trade.
+Arc turned its entire float eleven times in seven days. That is what a settlement rail looks like. The memecoin layer everyone wrote about was a low single-digit share of the chain's activity, and of the 200,163 pools it produced, thirty-four ever saw a hundred distinct wallets.
 
-Early result on one pool, 5-minute horizon:
+It was not a takeover. It was a rounding error on a payments network.
 
-| side | fills | median markout |
-|---|---|---|
-| buyers | 3,717 | **−880.6 bp** |
-| sellers | 1,778 | **+114.6 bp** |
+That also settles an open question. The obvious thing to ask was whether Circle would ever bless memecoins on its own chain — Robinhood faced the same situation and resolved it in two weeks by saying memes were fine, while Circle said nothing with Visa and DTCC among its validators. **Circle never had to decide.** The layer resolved itself into irrelevance without a policy statement.
 
-Buyers down 8.8% while sellers are up 1.1%, over the same window. That is not a falling market.
+## How it was measured
 
-The same method clears pools that are merely drifting — one showed buyers −14.3bp against sellers −11.1bp, which is symmetric and therefore uninformative. That discrimination is the point.
+Arc routes every Uniswap V4 swap through a single PoolManager at `0x8366a39cc670b4001a1121b8f6a443a643e40951`, with the pool id as an indexed topic. That makes the chain's entire DEX history one filtered log query. Pools are counted from `Initialize` events on the same contract over the same block window, so *created* and *traded* are measured on identical ground.
 
-## Architecture
-
-Live where it matters, precomputed where it's expensive:
-
-- **Live** — the browser calls Arc's RPC *directly* for current price, liquidity, exit cost and recent flow. Arc's RPC sets permissive CORS, so nothing sits between the page and the chain. Open devtools and watch the calls.
-- **Precomputed** — markouts and cohort stats run over millions of swaps, so they ship as static JSON refreshed on a schedule.
-- **Cost** — $0. Static hosting plus a cron. No backend, no keys, no third-party data provider.
-
-## Running it
+No API wrapper, no paid RPC, no indexing service. The block height on the live page is the browser calling `rpc.mainnet.arc.io` directly — Arc sets permissive CORS, so nothing sits between the page and the chain. Open devtools and watch it.
 
 ```bash
-python3 arc_index.py --workers 10     # backfill from mainnet launch, resumable
-python3 aggregate.py                  # derive site/data/pools.json
+python3 arc_index.py --workers 4        # backfill swaps, resumable
+python3 verify_census.py                # count pools created, independently
+python3 build_site_data.py              # compact to site/data/arc.json
 ```
 
-The indexer records completed chunks in `data/done.json`, so it resumes rather than restarting. `.github/workflows/index.yml` runs the same two steps on a schedule, caching the raw log (too large for git) and committing only the derived JSON.
+## What else is in the data
 
-## Notes on method
+**155 pools trade a token whose symbol reads USDC but whose contract is not USDC** — on a chain where USDC is the gas token. Two of them are among the largest tokens on Arc by volume, at $7.68M and $6.04M. One contract, `0x8e98a62a…a8f9d9`, runs seven separate pools totalling roughly $7.5M.
 
-- Block time is ~0.507s, measured, and markout horizons are converted to block offsets from it rather than fetching a timestamp per block.
-- V4 emits `int128` amounts sign-extended across the full 32-byte word; decoding them as 128-bit silently produces garbage.
-- Markouts use the pool's own `sqrtPriceX96` as the reference price, so token decimals cancel in the relative move.
-- Pools with fewer than 40 swaps are not scored — a median over a handful of fills is noise.
-- A markout always lags its horizon. A 30-minute number cannot exist for a fill five minutes old.
+**121 pools charge a fixed swap fee of 50% or more.** Every one realised that fee on real swaps with no hook overriding it — verified by comparing the pool's stated fee against the fee emitted on each `Swap` event. Total routed through them is only about $20,000, so this is a real mechanism at trivial scale.
+
+**1,637 pools have been touched by exactly one wallet.** TROLL, the fourth-busiest pool on the chain by swap count, is a single sender: 56,241 of its 57,452 swaps.
+
+## Stated limits
+
+- The scan covers blocks 21,065,860 → 22,357,859. Pools created before Arc's public launch are excluded; the PoolManager itself was deployed far earlier, at block 1,948,056.
+- 13 of 1,292 chunks failed on rate limits, so ~1% of the window is unscanned and the created count is a floor.
+- Swap-derived counts come from a 4.6M-swap index; the complete index is 7.5M, so traded counts are floors too. This makes the DEX share of transfers a floor as well — call it 3–5% rather than exactly 2.6%.
+- "Transferred" is Circle's published ERC-20 transfer figure; ours is DEX swap notional. Different measures, so the ratio is directional. The gap is 20–40×, which no reasonable adjustment closes.
+- Volume sums the USDC leg of each swap absolutely, counting both sides of a round trip. The headline figure halves it; the per-token table does not.
+
+## Things that were wrong and got fixed
+
+Recorded because the corrections matter more than the result.
+
+**The swap sign convention is swapper-side, not pool-side.** On Arc's V4 PoolManager a negative amount means the *trader paid that token in*. An earlier version assumed the Uniswap V3 pool-side convention, which inverted buyer and seller. Verified at 99.8% by pairing each swap's own price impact against its sign, restricted to swaps alone in their block so ordering is unambiguous without a log index.
+
+**USDC is token0 in 86% of Arc pools**, so defining direction against token0 rather than against the quote asset scrambles most of the chain.
+
+**The indexer could never finish.** The RPC rejects any `eth_getLogs` returning more than 20,000 logs; 55 chunks in launch week exceed that, the error was swallowed, and every rerun skipped them. Fixed with a 100-block sub-range fallback.
+
+**An early markout finding does not reproduce.** A partial 20,000-block sample appeared to show buyers systematically picked off. On the full index those numbers do not exist. The claim was removed rather than rounded into something defensible. Markouts are not currently reported here; the direction needs re-deriving against the corrected sign convention first.
+
+**Fee `8388608` is not a 838% fee**, it is V4's dynamic-fee sentinel meaning a hook sets the rate per swap. Those pools are marked `DYN` rather than given a number.
+
+## Sources
+
+Circle's week-one figures are from [@arc](https://x.com/arc), 23 September 2026. Everything else is derived from Arc mainnet (chain 5042) via `rpc.mainnet.arc.io`, indexed in this repo.

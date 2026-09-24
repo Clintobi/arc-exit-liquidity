@@ -88,6 +88,11 @@ def main():
         })
 
     rows.sort(key=lambda r: -r["v"])
+
+    # Both legs of a round trip land in `vol`, so the one-directional figure is
+    # half. Compared against Circle's published week-one transfer number this
+    # gives the share of Arc's USDC movement that is DEX speculation at all.
+    dex_gross = sum(vol.values())
     flags = {
         "high_fee":  sum(1 for r in rows if r["hf"]),
         "impostor":  sum(1 for r in rows if r["imp"]),
@@ -100,6 +105,10 @@ def main():
         "funnel": funnel,
         "flags": flags,
         "swaps_total": sum(swaps.values()),
+        "usdc_dex_gross": round(dex_gross, 2),
+        "usdc_dex_net": round(dex_gross / 2, 2),
+        "arc_usdc_transferred_wk1": 6_800_000_000,   # Circle, @arc, 23 Sep 2026
+        "arc_usdc_circulating": 624_000_000,         # Circle, @arc, 23 Sep 2026
         "block_from": min(first.values()) if first else 0,
         "block_to": max(last.values()) if last else 0,
         "tokens": rows[:1500],              # the page only ever renders the top

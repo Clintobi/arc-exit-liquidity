@@ -66,6 +66,17 @@
   .stat .k{font-size:10.5px;color:var(--dim);letter-spacing:.08em;margin-top:5px}
   .stat.hi .v{color:var(--red)}
 
+  /* ---- settlement split ---- */
+  .split{display:flex;flex-direction:column;gap:11px}
+  .srow{display:grid;grid-template-columns:190px 1fr 150px;gap:14px;align-items:center}
+  .slab{font-size:11.5px;color:var(--dim);text-align:right}
+  .strack{height:30px;background:var(--panel2);position:relative;overflow:hidden}
+  .sbar{height:100%;min-width:2px;transition:width .6s cubic-bezier(.2,.7,.3,1)}
+  .sbar.settle{background:linear-gradient(90deg,var(--green),var(--cyan))}
+  .sbar.spec{background:linear-gradient(90deg,var(--orange),var(--red))}
+  .sval{font-size:14px;font-variant-numeric:tabular-nums;color:var(--ink);font-weight:500}
+  .spct{font-size:10.5px;color:var(--faint);margin-left:8px;font-weight:400}
+
   /* ---- funnel ---- */
   .funnel{display:flex;flex-direction:column;gap:9px}
   .frow{display:grid;grid-template-columns:200px 1fr 120px;gap:14px;align-items:center}
@@ -137,9 +148,20 @@
   <!-- ============ CENSUS ============ -->
   <section id="census">
     <div class="panel">
-      <p class="kicker">THE QUESTION</p>
-      <p class="lede">Circle launched Arc on 16 September 2026. Twenty-seven launchpads opened almost immediately and began minting tokens — Argus alone minted <b>83,751 in the first 24 hours</b>. The open question is whether any of that became a market.</p>
-      <p class="lede">This counts every Uniswap V4 pool ever created on Arc, straight from the chain, and then applies progressively weaker definitions of the word "market" to see how many survive each one.</p>
+      <p class="kicker">ARC IS TWO CHAINS</p>
+      <p class="lede">Circle launched Arc on 16 September 2026 and every outlet ran the same story: the institutional chain had been taken over by memecoins on day one. Twenty-seven launchpads opened within hours and Argus alone minted <b>83,751 tokens in the first 24 hours</b>.</p>
+      <p class="lede">The arithmetic does not support the takeover. In its first week Arc moved <b>$6.8B of USDC</b> against <b>624M in circulation</b> — eleven turns of its own float, which is what a settlement rail looks like. Everything traded on every DEX pool on the chain accounts for a low single-digit share of that.</p>
+      <p class="lede">The memecoin layer was not a takeover. It was a rounding error on a payments network. This page counts it, pool by pool, from the chain.</p>
+    </div>
+
+    <div class="panel">
+      <div class="ptitle">
+        <h2>SETTLEMENT_VS_SPECULATION</h2>
+        <span class="desc">Arc's first week · USDC moved</span>
+        <span class="note">transfers per Circle · DEX volume indexed here</span>
+      </div>
+      <div class="split" id="split"></div>
+      <p class="lede" style="margin-top:16px" id="splitNote"></p>
     </div>
 
     <div class="stats" id="statrow"></div>
@@ -267,6 +289,27 @@ function tagsFor(r){
   return s;
 }
 
+function renderSplit(){
+  const moved = DATA.arc_usdc_transferred_wk1;
+  const dex   = DATA.usdc_dex_net;
+  const share = dex / moved * 100;
+  document.getElementById("split").innerHTML = `
+    <div class="srow">
+      <div class="slab">USDC transferred</div>
+      <div class="strack"><div class="sbar settle" style="width:100%"></div></div>
+      <div class="sval">$6.80B</div>
+    </div>
+    <div class="srow">
+      <div class="slab">through DEX pools</div>
+      <div class="strack"><div class="sbar spec" style="width:${Math.max(share,0.3).toFixed(2)}%"></div></div>
+      <div class="sval">${usd(dex)}<span class="spct">${share.toFixed(1)}%</span></div>
+    </div>`;
+  document.getElementById("splitNote").innerHTML =
+    `Arc turned its entire <b>624M</b> USDC float <b>eleven times</b> in seven days. `+
+    `Of everything that moved, roughly <b>${share.toFixed(0)}%</b> passed through a DEX pool — `+
+    `the layer every launch-week headline was about. The rest is settlement.`;
+}
+
 function renderCensus(){
   const f = DATA.funnel, created = f[0].n, alive = f[f.length-1].n;
   document.getElementById("statrow").innerHTML = [
@@ -290,7 +333,8 @@ function renderCensus(){
 
   document.getElementById("funnelNote").innerHTML =
     `Of <b>${fmt(created)}</b> pools created on Arc, <b>${fmt(alive)}</b> ever saw 100 distinct wallets trade them — `+
-    `<b>${(alive/created*100).toFixed(3)}%</b>. The launchpads worked exactly as designed. What they produced was pools, not markets.`;
+    `<b>${(alive/created*100).toFixed(3)}%</b>. The launchpads worked exactly as designed — they minted. `+
+    `What they produced was pools, not markets. Circle never had to rule on a meme season; there was never one to rule on.`;
 }
 
 let sortK = "v", sortDir = -1;
@@ -341,7 +385,7 @@ function renderFlags(){
 }
 
 fetch("data/arc.json").then(r => r.json()).then(d => {
-  DATA = d; renderCensus(); renderTokens(); renderFlags();
+  DATA = d; renderSplit(); renderCensus(); renderTokens(); renderFlags();
 }).catch(e => {
   document.getElementById("funnelNote").textContent = "could not load data/arc.json";
 });
