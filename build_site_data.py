@@ -100,6 +100,24 @@ def main():
         "dynamic":   sum(1 for r in rows if r["dyn"]),
     }
 
+    # The live tape matches incoming Swap logs by full pool id, so it needs an
+    # untruncated lookup. Quote side and decimals let it size each fill in USDC.
+    pmap = {}
+    for p_id in traded:
+        m = tokens.get(p_id)
+        if not m:
+            continue
+        qs = quote_side(m)
+        if qs is None:
+            continue
+        sym = (m.get("symbol1") if qs == 0 else m.get("symbol0")) or "?"
+        d0 = m.get("decimals0"); d1 = m.get("decimals1")
+        d0 = d0 if isinstance(d0, int) else 6
+        d1 = d1 if isinstance(d1, int) else 6
+        # Both decimals: sqrtPriceX96 is a RAW ratio, so a human price needs
+        # 10**(d0-d1) applied before any inversion.
+        pmap[p_id] = [sym[:14], qs, d0, d1]
+
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     json.dump({
         "funnel": funnel,
@@ -113,6 +131,7 @@ def main():
         "block_to": max(last.values()) if last else 0,
         "tokens": rows[:1500],              # the page only ever renders the top
         "flagged": [r for r in rows if r["hf"] or r["imp"]][:400],
+        "map": pmap,
     }, open(OUT, "w"), separators=(",", ":"))
 
     print(f"wrote {OUT}  ({os.path.getsize(OUT)/1e6:.2f} MB)")

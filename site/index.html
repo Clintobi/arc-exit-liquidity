@@ -66,6 +66,27 @@
   .stat .k{font-size:10.5px;color:var(--dim);letter-spacing:.08em;margin-top:5px}
   .stat.hi .v{color:var(--red)}
 
+  /* ---- live tape ---- */
+  .tape{height:212px;overflow:hidden;position:relative;font-size:11.5px}
+  .tapeEmpty{color:var(--faint);padding:10px 2px}
+  .trow{
+    display:grid;grid-template-columns:78px 52px 1fr 108px 104px;gap:10px;align-items:center;
+    padding:5px 8px;border-bottom:1px solid var(--line);animation:flashin .7s ease-out;
+  }
+  @keyframes flashin{from{background:rgba(74,222,128,.14)}to{background:transparent}}
+  .trow.sell{animation-name:flashsell}
+  @keyframes flashsell{from{background:rgba(248,113,113,.14)}to{background:transparent}}
+  .tblk{color:var(--faint);font-variant-numeric:tabular-nums}
+  .tside{font-weight:600;letter-spacing:.05em}
+  .tside.b{color:var(--green)} .tside.s{color:var(--red)}
+  .tsym{color:var(--ink);font-weight:500;overflow:hidden;text-overflow:ellipsis}
+  .tamt{text-align:right;font-variant-numeric:tabular-nums;color:var(--dim)}
+  .tpx{text-align:right;font-variant-numeric:tabular-nums;color:var(--dim)}
+  @media(max-width:720px){
+    .trow{grid-template-columns:60px 44px 1fr 92px}
+    .tpx{display:none}
+  }
+
   /* ---- settlement split ---- */
   .split{display:flex;flex-direction:column;gap:11px}
   .srow{display:grid;grid-template-columns:190px 1fr 150px;gap:14px;align-items:center}
@@ -147,6 +168,15 @@
 
   <!-- ============ CENSUS ============ -->
   <section id="census">
+    <div class="panel">
+      <div class="ptitle">
+        <h2>LIVE_TAPE</h2>
+        <span class="desc">every Uniswap V4 swap on Arc, as it lands</span>
+        <span class="note" id="tapeRate">—</span>
+      </div>
+      <div class="tape" id="tape"><div class="tapeEmpty">waiting for the next block…</div></div>
+    </div>
+
     <div class="panel">
       <p class="kicker">ARC IS TWO CHAINS</p>
       <p class="lede">Circle launched Arc on 16 September 2026 and every outlet ran the same story: the institutional chain had been taken over by memecoins on day one. Twenty-seven launchpads opened within hours and Argus alone minted <b>83,751 tokens in the first 24 hours</b>.</p>
@@ -242,8 +272,15 @@
 <script>
 const RPC = "https://rpc.mainnet.arc.io";
 const fmt = n => n.toLocaleString("en-US");
+const fmtPx = p => (!isFinite(p) || p <= 0) ? "—"
+  : p >= 1000 ? p.toLocaleString("en-US",{maximumFractionDigits:0})
+  : p >= 1    ? p.toFixed(3)
+  : p >= 1e-6 ? p.toFixed(8).replace(/0+$/,"")
+  : p.toExponential(2);
 const usd = n => n >= 1e6 ? "$"+(n/1e6).toFixed(2)+"M"
-               : n >= 1e3 ? "$"+(n/1e3).toFixed(1)+"k" : "$"+n.toFixed(0);
+               : n >= 1e3 ? "$"+(n/1e3).toFixed(1)+"k"
+               : n >= 1   ? "$"+n.toFixed(0)
+               : n > 0    ? "<$1" : "$0";
 
 /* ---- live chain head, straight from the browser ---- */
 async function tick(){
@@ -257,6 +294,81 @@ async function tick(){
   }catch(e){ /* a dropped poll should never blank a good number */ }
 }
 tick(); setInterval(tick, 2000);
+
+/* ---- live tape: poll new blocks, decode swaps, stream them in ---- */
+const PM   = "0x8366a39cc670b4001a1121b8f6a443a643e40951";
+const SWAP = "0x40e9cecb9f5f1f1c5b9c97dec2917b7ee92e57ba5563708daca94dd84ad7112f";
+const TWO256 = 1n << 256n, TWO255 = 1n << 255n;
+const signed = h => { const v = BigInt("0x"+h); return v >= TWO255 ? v - TWO256 : v; };
+
+let lastSeen = 0, seenCount = 0, startedAt = Date.now();
+
+async function rpc(method, params){
+  const r = await fetch(RPC,{method:"POST",headers:{"content-type":"application/json"},
+    body:JSON.stringify({jsonrpc:"2.0",id:1,method,params})});
+  const j = await r.json();
+  if(j.error) throw new Error(j.error.message);
+  return j.result;
+}
+
+function pushRows(rows){
+  const tape = document.getElementById("tape");
+  tape.querySelector(".tapeEmpty")?.remove();
+  for(const r of rows){
+    const el = document.createElement("div");
+    el.className = "trow" + (r.buy ? "" : " sell");
+    el.innerHTML =
+      `<span class="tblk">${r.block}</span>`+
+      `<span class="tside ${r.buy?"b":"s"}">${r.buy?"BUY":"SELL"}</span>`+
+      `<span class="tsym">${r.sym}</span>`+
+      `<span class="tamt">${r.usd!=null?usd(r.usd):"—"}</span>`+
+      `<span class="tpx">${r.px}</span>`;
+    tape.prepend(el);
+  }
+  while(tape.children.length > 40) tape.lastChild.remove();
+}
+
+async function pollTape(){
+  if(!DATA) return;
+  try{
+    const head = parseInt(await rpc("eth_blockNumber",[]),16);
+    if(!lastSeen){ lastSeen = head - 8; }           // start with a little history
+    if(head <= lastSeen) return;
+    const from = Math.max(lastSeen + 1, head - 60); // never ask for a huge range
+    const logs = await rpc("eth_getLogs",[{fromBlock:"0x"+from.toString(16),
+      toBlock:"0x"+head.toString(16), address:PM, topics:[SWAP]}]);
+    lastSeen = head;
+
+    const rows = [];
+    for(const l of logs){
+      const meta = DATA.map[l.topics[1]];
+      if(!meta) continue;                            // unnamed pool, skip
+      const [sym, qs, d0, d1] = meta;
+      const raw = l.data.slice(2);
+      const a0 = signed(raw.slice(0,64)), a1 = signed(raw.slice(64,128));
+      const q0 = qs === 0;
+      // swapper-side signs: receiving the traded token is the buy
+      const buy = q0 ? (a1 > 0n) : (a0 > 0n);
+      const qamt = q0 ? a0 : a1;
+      const absq = qamt < 0n ? -qamt : qamt;
+      const usdv = Number(absq) / Math.pow(10, q0 ? d0 : d1);
+      const sq = Number(BigInt("0x"+raw.slice(128,192))) / 2**96;
+      // raw ratio -> human price of token0 in token1, then invert if the
+      // quote sits on token0 so the figure is always "traded token in USDC"
+      let px = sq * sq * Math.pow(10, d0 - d1);
+      if(q0 && px > 0) px = 1 / px;
+      rows.push({block:parseInt(l.blockNumber,16), sym, buy, usd:usdv, px:fmtPx(px)});
+    }
+    if(rows.length){
+      seenCount += rows.length;
+      pushRows(rows.slice(-12));
+      const secs = (Date.now()-startedAt)/1000;
+      document.getElementById("tapeRate").textContent =
+        `${seenCount.toLocaleString()} swaps seen · ${(seenCount/Math.max(secs,1)).toFixed(1)}/s`;
+    }
+  }catch(e){ /* a dropped poll is not an error state */ }
+}
+setInterval(pollTape, 2200);
 
 /* ---- tabs ---- */
 const tabs = document.getElementById("tabs");
@@ -384,8 +496,9 @@ function renderFlags(){
     </tr>`).join("");
 }
 
-fetch("data/arc.json").then(r => r.json()).then(d => {
-  DATA = d; renderSplit(); renderCensus(); renderTokens(); renderFlags();
+// no-store: the cron refreshes this file, so a cached copy is always wrong
+fetch("data/arc.json", {cache:"no-store"}).then(r => r.json()).then(d => {
+  DATA = d; pollTape(); renderSplit(); renderCensus(); renderTokens(); renderFlags();
 }).catch(e => {
   document.getElementById("funnelNote").textContent = "could not load data/arc.json";
 });
