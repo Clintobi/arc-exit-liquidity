@@ -239,6 +239,7 @@
         <span class="desc">pools whose own parameters make them unsafe to touch</span>
       </div>
       <p class="lede" id="flagLede"></p>
+      <p class="lede" id="flagSource" style="color:var(--faint);font-size:11.5px;margin-top:8px"></p>
       <div class="tablewrap" style="margin-top:16px">
         <table id="flagTable">
           <thead><tr>
@@ -294,6 +295,58 @@ async function tick(){
   }catch(e){ /* a dropped poll should never blank a good number */ }
 }
 tick(); setInterval(tick, 2000);
+
+/* ---- ArcFlagRegistry, read straight from the chain ----
+   Set REGISTRY once deployed. Until then the FLAGS tab falls back to the
+   local index and says so, rather than showing on-chain-looking data that
+   is not on chain. */
+const REGISTRY = "";   // 0x… once deployed to Arc — verified against a local deployment, decodes correctly
+
+const SEL = {
+  flaggedCount: "0x5d214e01",
+  flaggedAt:    "0x97bb7775",
+  flagsOfBatch: "0x7fe7538a",
+  epoch:        "0x900cf0cf",
+};
+const word = n => BigInt(n).toString(16).padStart(64,"0");
+const addrWord = a => a.toLowerCase().replace(/^0x/,"").padStart(64,"0");
+
+async function ethCall(to, data){
+  const r = await fetch(RPC,{method:"POST",headers:{"content-type":"application/json"},
+    body:JSON.stringify({jsonrpc:"2.0",id:1,method:"eth_call",
+      params:[{to,data},"latest"]})});
+  const j = await r.json();
+  if(j.error) throw new Error(j.error.message);
+  return j.result;
+}
+// A dynamic return is [offset][length][...items]; skip the offset word.
+const words = hex => (hex.slice(2).match(/.{64}/g) || []);
+
+async function readRegistry(){
+  if(!REGISTRY) return null;
+  const count = Number(BigInt(await ethCall(REGISTRY, SEL.flaggedCount)));
+  if(!count) return {epoch:0, tokens:[]};
+  const epoch = Number(BigInt(await ethCall(REGISTRY, SEL.epoch)));
+
+  const tokens = [];
+  for(let start = 0; start < count; start += 400){
+    const n = Math.min(400, count - start);
+    const w = words(await ethCall(REGISTRY,
+      SEL.flaggedAt + word(start) + word(n)));
+    // [0] offset, [1] length, then the addresses
+    for(let i = 2; i < w.length; i++) tokens.push("0x" + w[i].slice(24));
+  }
+
+  const flags = [];
+  for(let i = 0; i < tokens.length; i += 400){
+    const chunk = tokens.slice(i, i + 400);
+    const data = SEL.flagsOfBatch + word(32) + word(chunk.length) +
+                 chunk.map(addrWord).join("");
+    const w = words(await ethCall(REGISTRY, data));
+    for(let k = 2; k < w.length; k++) flags.push(Number(BigInt("0x"+w[k])));
+  }
+  return {epoch, tokens, flags};
+}
 
 /* ---- live tape: poll new blocks, decode swaps, stream them in ---- */
 const PM   = "0x8366a39cc670b4001a1121b8f6a443a643e40951";
@@ -479,13 +532,43 @@ document.querySelector("#tokTable thead").addEventListener("click", e => {
   renderTokens();
 });
 
-function renderFlags(){
+async function renderFlags(){
+  const src = document.getElementById("flagSource");
+  if(REGISTRY){
+    try{
+      const on = await readRegistry();
+      if(on && on.tokens.length){
+        const byAddr = {};
+        DATA.flagged.concat(DATA.tokens).forEach(r => { if(r.addr) byAddr[r.addr.toLowerCase()] = r; });
+        const rows = on.tokens.map((t,i) => ({
+          ...(byAddr[t] || {sym:"?", v:0, sw:0, w:0, fee:null}),
+          addr: t,
+          hf:  !!(on.flags[i] & 2),
+          imp: !!(on.flags[i] & 1),
+          solo:!!(on.flags[i] & 4),
+        })).filter(r => r.hf || r.imp);
+        src.innerHTML = `reading <b>${on.tokens.length}</b> records from `+
+          `<b>${REGISTRY.slice(0,10)}…</b> on Arc, epoch ${on.epoch} — `+
+          `not from this page's data file`;
+        paintFlagTable(rows);
+        return;
+      }
+    }catch(e){
+      src.textContent = "registry unreachable — showing the local index instead";
+    }
+  } else {
+    src.textContent = "from the local index; the on-chain registry is not deployed yet";
+  }
   const fl = DATA.flags;
   document.getElementById("flagLede").innerHTML =
     `<b>${fmt(fl.high_fee)}</b> pools charge a fixed swap fee of 50% or more — every one of them realised that fee on real swaps, `+
     `with no hook overriding it. <b>${fmt(fl.impostor)}</b> pools trade a token whose symbol reads USDC but whose contract is not USDC, `+
     `on a chain where USDC is the gas token. <b>${fmt(fl.solo)}</b> have been touched by exactly one wallet.`;
-  document.querySelector("#flagTable tbody").innerHTML = DATA.flagged.map(r => `
+  paintFlagTable(DATA.flagged);
+}
+
+function paintFlagTable(rows){
+  document.querySelector("#flagTable tbody").innerHTML = rows.map(r => `
     <tr>
       <td><span class="sym">${r.sym}</span>${tagsFor(r)}</td>
       <td class="num">${feeCell(r)}</td>
