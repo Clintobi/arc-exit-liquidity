@@ -297,10 +297,10 @@ async function tick(){
 tick(); setInterval(tick, 2000);
 
 /* ---- ArcFlagRegistry, read straight from the chain ----
-   Set REGISTRY once deployed. Until then the FLAGS tab falls back to the
-   local index and says so, rather than showing on-chain-looking data that
-   is not on chain. */
-const REGISTRY = "";   // 0x… once deployed to Arc — verified against a local deployment, decodes correctly
+   Live on Arc mainnet (chain 5042). If the call fails, the FLAGS tab falls
+   back to the local index and says so, rather than showing on-chain-looking
+   data that is not on chain. */
+const REGISTRY = "0x27B0AA7E1824d4561c02363bf1c3Ac47e4548221";
 
 const SEL = {
   flaggedCount: "0x5d214e01",
