@@ -169,9 +169,6 @@ async function check(addr){
         <div class="fact"><div class="v">${(maxFee/1e4).toFixed(2)}%</div><div class="k">MAX FEE</div></div>
         <div class="fact"><div class="v">${blockSeen.toLocaleString()}</div><div class="k">BLOCK</div></div>
       </div>
-      <div class="note">Observations about the token and its pools, read from the registry on
-      Arc. Not an assessment of intent. The figures are included so they can be verified
-      independently.</div>
       <div class="addr">${addr}</div>`, "bad");
   }catch(e){
     render(`<div class="headline">Arc unreachable</div>
