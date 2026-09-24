@@ -185,11 +185,37 @@ def main():
                     help="Arc block the assessment holds through")
     ap.add_argument("--plan-out")
     ap.add_argument("--limit", type=int, help="publish only the first N (testing)")
+    ap.add_argument("--only", default="collision,highfee",
+                    help="comma-separated flags to publish: collision, highfee, "
+                         "single, dead, dynamic, or 'all'. Defaults to the two "
+                         "that are actual warnings; the never-traded set is half "
+                         "the gas and mostly noise.")
     a = ap.parse_args()
 
     if not os.path.exists(TOKENS):
         sys.exit(f"missing {TOKENS}")
     rows = build_plan()
+
+    if a.only.strip().lower() != "all":
+        wanted = 0
+        names = {"collision": SYMBOL_COLLISION, "highfee": HIGH_FEE,
+                 "single": SINGLE_TRADER, "dead": NEVER_TRADED,
+                 "dynamic": DYNAMIC_FEE}
+        for nm in a.only.split(","):
+            nm = nm.strip().lower()
+            if nm not in names:
+                sys.exit(f"unknown flag '{nm}' — pick from {', '.join(names)} or all")
+            wanted |= names[nm]
+        kept = []
+        for r in rows:
+            masked = r["flags"] & wanted
+            if masked:
+                # Publish only the selected bits, so a later round can add the
+                # rest without this row implying anything it did not assert.
+                kept.append({**r, "flags": masked})
+        print(f"filter --only {a.only}: {len(kept):,} of {len(rows):,} tokens\n")
+        rows = kept
+
     if a.limit:
         rows = rows[:a.limit]
     summarise(rows)
