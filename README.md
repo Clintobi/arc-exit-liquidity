@@ -2,6 +2,8 @@
 
 **Live: [arc-exit-liquidity.vercel.app](https://arc-exit-liquidity.vercel.app)**
 
+**Arc Token Check: [arc-token-check.vercel.app](https://arc-token-check.vercel.app)** (source in [`check/`](check/)). Paste any Arc token address and get a plain verdict read straight from [ArcFlagRegistry](https://explorer.arc.io/address/0x27B0AA7E1824d4561c02363bf1c3Ac47e4548221) on Arc mainnet: whether it uses the USDC name at an address that isn't Arc's USDC, whether its pools took 50% or more of a trade, or whether it's too new to be in the record. `python3 check/build_findings.py` rebuilds the Findings page data from the registry.
+
 Circle launched Arc on 16 September 2026 and the coverage was unanimous. Coindesk: *"traders immediately turned it into a memecoin casino."* Forbes: *"Circle built Arc for BlackRock, memecoins are moving in first."* Fortune, KuCoin and the rest ran the same story — the institutional chain had been taken over on day one.
 
 The arithmetic does not support it.

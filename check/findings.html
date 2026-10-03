@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Findings · Arc Token Check</title>
+<meta name="description" content="What every Uniswap V4 swap on Arc shows: tokens posing as USDC, pools that keep half a trade, and how to read the on-chain registry.">
+<meta name="theme-color" content="#f7f9fa" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#14181d" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23165e66'/%3E%3Ccircle cx='14' cy='14' r='6.5' fill='none' stroke='white' stroke-width='2.8'/%3E%3Cpath d='M19 19l5 5' stroke='white' stroke-width='2.8' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to the findings</a>
+
+<header class="bar">
+  <div class="bar-inner">
+    <a class="brand" href="./" aria-label="Arc Token Check, home">
+      <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="var(--accent)"/><circle cx="14" cy="14" r="6.5" fill="none" stroke="var(--accent-ink)" stroke-width="2.8"/><path d="M19 19l5 5" stroke="var(--accent-ink)" stroke-width="2.8" stroke-linecap="round"/></svg>
+      Arc Token Check
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a href="./">Check</a>
+      <a href="findings.html" aria-current="page">Findings</a>
+      <a class="nav-opt" href="#developers">Developers</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="page page-wide">
+  <h1>What every swap on Arc shows</h1>
+  <p class="lede" id="lede">We indexed every Uniswap V4 swap on Arc straight from its public RPC, with no paid indexer in between. Two things a buyer should know before trading stood out, and both are now recorded on-chain.</p>
+
+  <section class="section" aria-labelledby="usdc-h">
+    <h2 id="usdc-h">Tokens posing as USDC</h2>
+    <p id="usdc-p">On Arc, USDC pays for gas and lives at one address. Contracts that call themselves USDC at any other address still trade, and some of them are among the busiest tokens on the chain.</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="usdc-h">
+      <table>
+        <thead><tr><th scope="col">Token</th><th scope="col">Address</th><th scope="col" class="r">Volume</th><th scope="col" class="r">Wallets</th><th scope="col" class="r">Pools</th></tr></thead>
+        <tbody id="usdc-rows"><tr><td colspan="5">Loading records…</td></tr></tbody>
+      </table>
+    </div>
+    <p class="fine more" id="usdc-more"></p>
+    <p class="fine">Volume is the USDC side of every swap, counting both directions of a round trip.</p>
+  </section>
+
+  <section class="section" aria-labelledby="fee-h">
+    <h2 id="fee-h">Pools that keep half a trade or more</h2>
+    <p>A Uniswap V4 pool can set its own fee, and a hook can change it per swap. We compared the fee each pool states with the fee taken on every real swap. These tokens trade in pools where the fee actually taken reached 50% or more.</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="fee-h">
+      <table>
+        <thead><tr><th scope="col">Token</th><th scope="col">Address</th><th scope="col" class="r">Highest fee taken</th><th scope="col" class="r">Wallets</th><th scope="col" class="r">Pools</th></tr></thead>
+        <tbody id="fee-rows"><tr><td colspan="5">Loading records…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="ctx-h">
+    <h2 id="ctx-h">For scale: trading is a sliver of Arc</h2>
+    <p id="ctx-p">Launch-week coverage called Arc a memecoin casino. The numbers say otherwise.</p>
+    <div class="figure-line" id="ctx-fig" hidden>
+      <div class="bar-track" role="img" id="ctx-bar"><div class="bar-fill" id="ctx-fill"></div></div>
+      <div class="figure-legend"><span id="ctx-left"></span><span id="ctx-right"></span></div>
+    </div>
+    <ul class="plain" id="ctx-list"></ul>
+  </section>
+
+  <section class="section" id="developers" aria-labelledby="dev-h">
+    <h2 id="dev-h">For developers: read the registry</h2>
+    <p>Any wallet, DEX front end or agent can ask the same question this site asks, in one call. No API key, no server of ours in between.</p>
+
+    <div class="copyrow">
+      <code id="reg-addr">0x27B0AA7E1824d4561c02363bf1c3Ac47e4548221</code>
+      <button class="linkbtn" type="button" data-copy-text="0x27B0AA7E1824d4561c02363bf1c3Ac47e4548221">Copy address</button>
+      <a href="https://explorer.arc.io/address/0x27B0AA7E1824d4561c02363bf1c3Ac47e4548221" target="_blank" rel="noopener">View on Arc explorer</a>
+    </div>
+
+    <pre><code>// viem
+const flagged = await client.readContract({
+  address: "0x27B0AA7E1824d4561c02363bf1c3Ac47e4548221",
+  abi: parseAbi(["function isFlagged(address) view returns (bool)"]),
+  functionName: "isFlagged",
+  args: [token],
+});
+
+# Foundry
+cast call 0x27B0AA7E1824d4561c02363bf1c3Ac47e4548221 \
+  "flagsOf(address)(uint8)" $TOKEN --rpc-url https://rpc.mainnet.arc.io</code></pre>
+
+    <div class="table-wrap wraps" tabindex="0" role="region" aria-label="Registry functions">
+      <table>
+        <thead><tr><th scope="col">Function</th><th scope="col">Returns</th></tr></thead>
+        <tbody>
+          <tr><td><code>isFlagged(address)</code></td><td>true if any flag is set</td></tr>
+          <tr><td><code>flagsOf(address)</code></td><td>the flag bitmask below</td></tr>
+          <tr><td><code>getRecord(address)</code></td><td>flags, pools, wallets, highest fee, block it holds through, epoch</td></tr>
+          <tr><td><code>flagsOfBatch(address[])</code></td><td>flags for many tokens in one call</td></tr>
+          <tr><td><code>flaggedCount()</code> / <code>flaggedAt(start, n)</code></td><td>enumerate every token on record</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="table-wrap wraps" tabindex="0" role="region" aria-label="Flag bits">
+      <table>
+        <thead><tr><th scope="col" class="r">Bit</th><th scope="col">Flag</th><th scope="col">Meaning</th><th scope="col" class="r">Published</th></tr></thead>
+        <tbody id="flag-rows">
+          <tr><td class="r">1</td><td><code>SYMBOL_COLLISION</code></td><td>uses a canonical asset's symbol at a different address</td><td class="r" data-bit="1">–</td></tr>
+          <tr><td class="r">2</td><td><code>HIGH_FEE</code></td><td>seen in a pool whose realised fee is 50% or more</td><td class="r" data-bit="2">–</td></tr>
+          <tr><td class="r">4</td><td><code>SINGLE_TRADER</code></td><td>every swap came from one sender</td><td class="r" data-bit="4">–</td></tr>
+          <tr><td class="r">8</td><td><code>NEVER_TRADED</code></td><td>a pool exists, no swap ever settled</td><td class="r" data-bit="8">–</td></tr>
+          <tr><td class="r">16</td><td><code>DYNAMIC_FEE</code></td><td>a hook sets the fee per swap</td><td class="r" data-bit="16">–</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 class="section" style="margin-top:var(--s-6);font-size:var(--t-md)">Limits, stated plainly</h3>
+    <ul class="plain" id="limits">
+      <li>Flags are facts about chain history, not verdicts on the people behind a token.</li>
+      <li>One address publishes flags today. <code>setPublisher</code> is where that opens up; it hasn't yet.</li>
+      <li>Clearing a flag costs the same as setting one, so a mistake is cheap to fix. Report one on <a href="https://github.com/Clintobi/arc-exit-liquidity/issues" target="_blank" rel="noopener">GitHub</a>.</li>
+      <li id="limit-block">Records hold through the block shown on each one. Newer pools aren't in until the next publishing round.</li>
+    </ul>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="foot-inner">
+    <span>Registry <a class="mono" href="https://explorer.arc.io/address/0x27B0AA7E1824d4561c02363bf1c3Ac47e4548221" target="_blank" rel="noopener">0x27B0…8221</a> on Arc mainnet</span>
+    <span><a href="./">Check a token</a> · <a href="https://github.com/Clintobi/arc-exit-liquidity" target="_blank" rel="noopener">Source on GitHub</a></span>
+  </div>
+</footer>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="findings.js" type="module"></script>
+</body>
+</html>
