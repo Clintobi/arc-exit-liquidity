@@ -4,190 +4,88 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Arc Token Check</title>
-<meta name="description" content="Token records from Arc mainnet, read from an on-chain registry.">
+<meta name="description" content="Paste an Arc token address and see what the chain record shows before you buy: whether it's really USDC, and whether its pool keeps half or more of a trade.">
+<meta name="theme-color" content="#f7f9fa" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#14181d" media="(prefers-color-scheme: dark)">
+<meta property="og:title" content="Arc Token Check">
+<meta property="og:description" content="Check an Arc token before you buy it. Read from an on-chain registry built from every Uniswap swap on Arc.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23165e66'/%3E%3Ccircle cx='14' cy='14' r='6.5' fill='none' stroke='white' stroke-width='2.8'/%3E%3Cpath d='M19 19l5 5' stroke='white' stroke-width='2.8' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<style>
-  :root{
-    --bg:#0b0c0e; --card:#131519; --line:#22262c; --edge:#2e343c;
-    --ink:#f2f4f6; --dim:#9aa3ad; --faint:#5e6771;
-    --red:#ff5f56; --amber:#ffb340; --green:#32d74b; --blue:#5ac8fa;
-    --sans:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;
-    --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
-  }
-  *{box-sizing:border-box}
-  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans)}
-  body{min-height:100vh;padding:0 16px 64px;padding-top:calc(48px + env(safe-area-inset-top,0px));
-       -webkit-font-smoothing:antialiased;display:flex;flex-direction:column;align-items:center}
-  a{color:var(--blue)}
-
-  .wrap{width:100%;max-width:620px;display:flex;flex-direction:column;gap:26px}
-
-  header{text-align:center}
-  .badge{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11px;
-         letter-spacing:.1em;color:var(--dim);border:1px solid var(--line);padding:5px 11px;border-radius:999px}
-  .dot{width:6px;height:6px;border-radius:50%;background:var(--green)}
-  h1{font-size:clamp(30px,7vw,42px);font-weight:700;letter-spacing:-.03em;margin:18px 0 0;line-height:1.1}
-  .sub{color:var(--dim);font-size:16px;line-height:1.6;margin:12px auto 0;max-width:46ch}
-
-  form{display:flex;gap:9px;flex-wrap:wrap}
-  input{
-    flex:1;min-width:0;background:var(--card);border:1px solid var(--edge);color:var(--ink);
-    font-family:var(--mono);font-size:14px;padding:16px 16px;border-radius:12px;
-  }
-  input::placeholder{color:var(--faint)}
-  input:focus{outline:none;border-color:var(--blue)}
-  button{
-    background:var(--ink);color:#000;border:0;font-family:var(--sans);font-weight:600;
-    font-size:15px;padding:16px 26px;border-radius:12px;cursor:pointer;
-  }
-  button:hover{opacity:.88}
-  button:disabled{opacity:.45;cursor:default}
-
-  .out{display:none}
-  .out.show{display:block}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;
-        border-left:4px solid var(--line)}
-  .card.bad{border-left-color:var(--red)}
-  .card.clean{border-left-color:var(--green)}
-  .card.err{border-left-color:var(--amber)}
-  .headline{font-size:21px;font-weight:700;letter-spacing:-.02em;display:flex;align-items:center;gap:10px}
-  .card.bad .headline{color:var(--red)}
-  .card.clean .headline{color:var(--green)}
-  .card.err .headline{color:var(--amber)}
-  ul{margin:16px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px}
-  li{display:flex;gap:11px;font-size:15px;line-height:1.5}
-  li::before{content:"";flex:none;width:6px;height:6px;border-radius:50%;background:var(--red);margin-top:8px}
-
-  .facts{margin-top:18px;padding-top:16px;border-top:1px solid var(--line);
-         display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:14px}
-  .fact .v{font-family:var(--mono);font-size:17px;font-weight:500}
-  .fact .k{font-size:11px;color:var(--faint);margin-top:3px}
-  .note{margin-top:16px;font-size:13px;color:var(--faint);line-height:1.65}
-  .addr{font-family:var(--mono);font-size:12px;color:var(--dim);word-break:break-all;margin-top:14px}
-
-  .examples{font-size:13px;color:var(--faint);line-height:2}
-  .examples b{color:var(--dim);font-weight:500;display:block;margin-bottom:2px}
-  .ex{font-family:var(--mono);font-size:12px;color:var(--blue);cursor:pointer;background:none;
-      border:0;padding:0;display:block;text-align:left}
-  .ex:hover{text-decoration:underline}
-
-  footer{font-size:12px;color:var(--faint);line-height:1.9;text-align:center;border-top:1px solid var(--line);padding-top:20px}
-</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="preconnect" href="https://rpc.mainnet.arc.io" crossorigin>
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<div class="wrap">
+<a class="skip" href="#main">Skip to the check</a>
 
-  <header>
-    <span class="badge"><span class="dot"></span> ARC MAINNET · <span id="cnt">...</span> RECORDS</span>
-    <h1>Token check</h1>
-    <p class="sub">Enter a token address from Arc. Records are read from an on-chain registry.</p>
-  </header>
+<header class="bar">
+  <div class="bar-inner">
+    <a class="brand" href="./" aria-label="Arc Token Check, home">
+      <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="var(--accent)"/><circle cx="14" cy="14" r="6.5" fill="none" stroke="var(--accent-ink)" stroke-width="2.8"/><path d="M19 19l5 5" stroke="var(--accent-ink)" stroke-width="2.8" stroke-linecap="round"/></svg>
+      Arc Token Check
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a href="./" aria-current="page">Check</a>
+      <a href="findings.html">Findings</a>
+      <a class="nav-opt" href="findings.html#developers">Developers</a>
+    </nav>
+  </div>
+</header>
 
-  <form id="f">
-    <input id="a" spellcheck="false" autocomplete="off" placeholder="0x" aria-label="token address">
-    <button id="go" type="submit">Check</button>
+<main id="main" class="page">
+  <h1>Check an Arc token before you buy it</h1>
+  <p class="lede">Paste a token's contract address. You'll see what Arc's own chain history shows about it: whether it's really USDC, and whether its pool keeps half or more of a trade.</p>
+
+  <form class="check" id="form" novalidate>
+    <label for="addr">Token contract address</label>
+    <div class="field-row">
+      <div class="field">
+        <input id="addr" name="a" type="text" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false"
+               placeholder="0x…" aria-describedby="addr-msg" maxlength="66">
+        <button class="paste" id="paste" type="button" hidden>Paste</button>
+      </div>
+      <button class="btn" id="go" type="submit">Check</button>
+    </div>
+    <p class="field-msg" id="addr-msg" aria-live="polite">42 characters, starting with 0x.</p>
   </form>
 
-  <div class="out" id="out"></div>
-
-  <div class="examples">
-    <b>Examples</b>
-    <button class="ex" data-a="0x8e98a62a995a50eca9979bfa016f91bf36a8f9d9">0x8e98a62a995a50eca9979bfa016f91bf36a8f9d9</button>
-    <button class="ex" data-a="0x3600000000000000000000000000000000000000">0x3600000000000000000000000000000000000000</button>
+  <div class="try" id="try" aria-label="Example addresses">
+    <span>Try one:</span>
+    <button class="chip" type="button" data-a="0xb67f50fde86e09b5da963c4251cbd4788b151ed5">A token named USDC</button>
+    <button class="chip" type="button" data-a="0x3600000000000000000000000000000000000000">Arc's real USDC</button>
+    <button class="chip" type="button" id="try-fee" hidden>A pool that keeps half</button>
   </div>
 
-  <footer>
-    Registry <a href="https://explorer.arc.io/address/0x27B0AA7E1824d4561c02363bf1c3Ac47e4548221" target="_blank" rel="noopener">0x27B0AA7E1824d4561c02363bf1c3Ac47e4548221</a>, Arc mainnet.<br>
-    Derived from a full index of Uniswap V4 swaps on Arc.
-    <a href="https://github.com/Clintobi/arc-exit-liquidity" target="_blank" rel="noopener">Source</a>.
-    <a href="https://arc-exit-liquidity.vercel.app" target="_blank" rel="noopener">Chain data</a>.
-  </footer>
-</div>
+  <p class="status" id="status"><span class="dot" aria-hidden="true"></span><span id="status-text">Connecting to Arc mainnet…</span></p>
 
-<script>
-const RPC = "https://rpc.mainnet.arc.io";
-const REGISTRY = "0x27B0AA7E1824d4561c02363bf1c3Ac47e4548221";
-const SEL_RECORD = "0x617fba04";   // getRecord(address)
-const SEL_COUNT  = "0x5d214e01";   // flaggedCount()
+  <section class="result" id="result" aria-label="Result"></section>
+  <p class="visually-hidden" id="announce" aria-live="polite"></p>
 
-const pad = a => a.toLowerCase().replace(/^0x/,"").padStart(64,"0");
-const words = h => (h.slice(2).match(/.{64}/g) || []);
-const num = w => Number(BigInt("0x"+w));
-
-async function call(data){
-  const r = await fetch(RPC,{method:"POST",headers:{"content-type":"application/json"},
-    body:JSON.stringify({jsonrpc:"2.0",id:1,method:"eth_call",params:[{to:REGISTRY,data},"latest"]})});
-  const j = await r.json();
-  if(j.error) throw new Error(j.error.message);
-  return j.result;
-}
-
-// Worded as facts about the token, because that is what the registry holds.
-const FINDINGS = [
-  [1,  "Trades under the symbol USDC. Its contract is not USDC. USDC is the gas token on Arc."],
-  [2,  "The pool carrying most of its volume charges a fee of 50 percent or more."],
-  [4,  "One wallet accounts for every trade on record."],
-  [8,  "A pool exists. No trade has settled in it."],
-  [16, "Fee is set per swap by a hook contract. No fixed rate applies."],
-];
-
-const out = document.getElementById("out");
-
-function render(html, kind){
-  out.className = "out show";
-  out.innerHTML = `<div class="card ${kind}">${html}</div>`;
-}
-
-async function check(addr){
-  if(!/^0x[a-fA-F0-9]{40}$/.test(addr)){
-    render(`<div class="headline">Not an address</div>
-      <div class="note">Expected 42 characters beginning 0x.</div>`, "err");
-    return;
-  }
-  render(`<div class="headline">Reading</div>`, "");
-  try{
-    const w = words(await call(SEL_RECORD + pad(addr)));
-    const [flags, pools, traders, maxFee, blockSeen] = w.slice(0,5).map(num);
-
-    if(!flags){
-      render(`<div class="headline">No records</div>
-        <div class="note">No check in this registry returned a result for this token.
-        That is not a safety assessment. It means no USDC symbol collision, no fee at or
-        above 50 percent, and no single wallet pool was found. Nothing else was tested.</div>
-        <div class="addr">${addr}</div>`, "clean");
-      return;
-    }
-    const hits = FINDINGS.filter(([b]) => flags & b).map(([,t]) => t);
-    render(`
-      <div class="headline">${hits.length} record${hits.length>1?"s":""}</div>
-      <ul>${hits.map(h => `<li>${h}</li>`).join("")}</ul>
-      <div class="facts">
-        <div class="fact"><div class="v">${pools.toLocaleString()}</div><div class="k">POOLS</div></div>
-        <div class="fact"><div class="v">${traders.toLocaleString()}</div><div class="k">WALLETS</div></div>
-        <div class="fact"><div class="v">${(maxFee/1e4).toFixed(2)}%</div><div class="k">MAX FEE</div></div>
-        <div class="fact"><div class="v">${blockSeen.toLocaleString()}</div><div class="k">BLOCK</div></div>
+  <section class="section" aria-labelledby="checks-h">
+    <h2 id="checks-h">What gets checked</h2>
+    <p>Every answer comes from <a href="findings.html#developers">ArcFlagRegistry</a>, a contract on Arc mainnet. It was built from an index of every Uniswap V4 swap on Arc: 4.59 million swaps across 200,163 pools. It records two facts today.</p>
+    <dl class="checks">
+      <div>
+        <dt>Uses the USDC name at another address</dt>
+        <dd>USDC is Arc's gas token and lives at one address, <code>0x3600…0000</code>. Any other contract calling itself USDC gets recorded, because buying it doesn't get you dollars.</dd>
       </div>
-      <div class="addr">${addr}</div>`, "bad");
-  }catch(e){
-    render(`<div class="headline">Arc unreachable</div>
-      <div class="note">${String(e.message || e).slice(0,140)}</div>`, "err");
-  }
-}
+      <div>
+        <dt>Pool keeps 50% or more of a trade</dt>
+        <dd>Measured from the fee actually taken on real swaps, not the pool's stated setting. A hook can override that setting, and several on Arc do.</dd>
+      </div>
+    </dl>
+  </section>
+</main>
 
-document.getElementById("f").addEventListener("submit", e => {
-  e.preventDefault();
-  check(document.getElementById("a").value.trim());
-});
-document.querySelectorAll(".ex").forEach(b => b.addEventListener("click", () => {
-  document.getElementById("a").value = b.dataset.a;
-  check(b.dataset.a);
-}));
+<footer class="foot">
+  <div class="foot-inner">
+    <span>Registry <a class="mono" href="https://explorer.arc.io/address/0x27B0AA7E1824d4561c02363bf1c3Ac47e4548221" target="_blank" rel="noopener">0x27B0…8221</a> on Arc mainnet</span>
+    <span><a href="findings.html">Findings</a> · <a href="https://github.com/Clintobi/arc-exit-liquidity" target="_blank" rel="noopener">Source on GitHub</a></span>
+  </div>
+</footer>
 
-call(SEL_COUNT)
-  .then(r => document.getElementById("cnt").textContent = Number(BigInt(r)).toLocaleString())
-  .catch(() => document.getElementById("cnt").textContent = "n/a");
-</script>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="app.js" type="module"></script>
 </body>
 </html>
